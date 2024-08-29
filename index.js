@@ -26,14 +26,17 @@ async function run() {
     // await client.connect();
 
     const productCollection = client
-      .db("quickShopDB")
-      .collection("allProducts");
+      .db("QuickShopBD")
+      .collection("AllProduct");
 
     // get all products
     app.get("/allProducts", async (req, res) => {
       const result = await productCollection.find().toArray();
       res.send(result);
     });
+
+
+    
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ping: 1});
