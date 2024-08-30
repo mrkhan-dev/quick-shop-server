@@ -3,7 +3,7 @@ const app = express();
 const cors = require("cors");
 require("dotenv").config();
 const port = process.env.PORT || 8000;
-const {MongoClient, ServerApiVersion} = require("mongodb");
+const { MongoClient, ServerApiVersion } = require("mongodb");
 
 // middleware
 app.use(cors());
@@ -25,9 +25,8 @@ async function run() {
     // Connect the client to the server	(optional starting in v4.7)
     // await client.connect();
 
-    const productCollection = client
-      .db("QuickShopBD")
-      .collection("AllProduct");
+    const productCollection = client.db("QuickShopBD").collection("AllProduct");
+    const allUserCollection = client.db("QuickShopBD").collection("allUsers");
 
     // get all products
     app.get("/allProducts", async (req, res) => {
@@ -35,13 +34,19 @@ async function run() {
       res.send(result);
     });
 
+    app.post("/all-users", async (req, res) => {
+      const users = req.body
+      const result = await allUserCollection.insertOne(users)
+      res.send(result)
+    })
 
-    
 
-    
+
+
+
 
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ping: 1});
+    await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
     );
