@@ -3,7 +3,7 @@ const app = express();
 const cors = require("cors");
 require("dotenv").config();
 const port = process.env.PORT || 8000;
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
 // middleware
 app.use(cors());
@@ -34,11 +34,43 @@ async function run() {
       res.send(result);
     });
 
+    app.get('/user-profile/:email', async (req, res) => {
+      const email = req.params.email
+      const query = { email: email }
+      const result = await allUserCollection.find(query).toArray()
+      res.send(result)
+    })
+
+    app.get("/details/:id", async (req, res) => {
+      const product = req.params.id
+      const query = { _id: new ObjectId(product) }
+      const result = await productCollection.findOne(query)
+      res.send(result)
+    })
+
+
     app.post("/all-users", async (req, res) => {
       const users = req.body
       const result = await allUserCollection.insertOne(users)
       res.send(result)
     })
+
+    app.patch("/user-image-update/:email", async (req, res) => {
+      const email = req.params.email
+      const { image } = req.body
+      const filter = { email: email }
+      const option = { upsert: true }
+      const updateDoc = {
+        $set: {
+          image: image
+        }
+      }
+      const result = await allUserCollection.updateOne(filter, updateDoc, option)
+      res.send(result)
+    })
+
+
+
 
 
 
