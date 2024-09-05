@@ -3,8 +3,8 @@ const app = express();
 const cors = require("cors");
 require("dotenv").config();
 const port = process.env.PORT || 8000;
-const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
-const { default: axios } = require("axios");
+const {MongoClient, ServerApiVersion, ObjectId} = require("mongodb");
+const {default: axios} = require("axios");
 
 // middleware
 app.use(cors());
@@ -30,84 +30,105 @@ async function run() {
     const productCollection = client.db("QuickShopBD").collection("AllProduct");
     const allUserCollection = client.db("QuickShopBD").collection("allUsers");
     const paymentHistory = client.db("QuickShopBD").collection("payment");
-    const tnxId = new ObjectId().toString()
+    const tnxId = new ObjectId().toString();
     // get all products
     app.get("/allProducts", async (req, res) => {
       const result = await productCollection.find().toArray();
       res.send(result);
     });
 
-    app.get('/user-profile/:email', async (req, res) => {
-      const email = req.params.email
-      const query = { email: email }
-      const result = await allUserCollection.find(query).toArray()
-      res.send(result)
-    })
+    app.get("/user-profile/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = {email: email};
+      const result = await allUserCollection.find(query).toArray();
+      res.send(result);
+    });
+
+    // create admin (sk)
+    app.get("allUsers/admin/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = {email: email};
+      const user = allUserCollection.findOne(query);
+      let admin = false;
+      if (user) {
+        admin = user?.role === "admin";
+      }
+      res.send({admin});
+    });
 
     app.get("/details/:id", async (req, res) => {
-      const product = req.params.id
-      const query = { _id: new ObjectId(product) }
-      const result = await productCollection.findOne(query)
-      res.send(result)
-    })
-
+      const product = req.params.id;
+      const query = {_id: new ObjectId(product)};
+      const result = await productCollection.findOne(query);
+      res.send(result);
+    });
 
     app.post("/all-users", async (req, res) => {
-      const users = req.body
-      const result = await allUserCollection.insertOne(users)
-      res.send(result)
-    })
+      const users = req.body;
+      const result = await allUserCollection.insertOne(users);
+      res.send(result);
+    });
 
-
-    app.patch('/user-name-change/:email', async (req, res) => {
-      const email = req.params.email
-      const { name } = req.body
-      const filter = { email: email }
-      const option = { upsert: true }
+    app.patch("/user-name-change/:email", async (req, res) => {
+      const email = req.params.email;
+      const {name} = req.body;
+      const filter = {email: email};
+      const option = {upsert: true};
       const updateDoc = {
         $set: {
-          name: name
-        }
-      }
-      const result = await allUserCollection.updateOne(filter, updateDoc, option)
-      res.send(result)
-    })
+          name: name,
+        },
+      };
+      const result = await allUserCollection.updateOne(
+        filter,
+        updateDoc,
+        option
+      );
+      res.send(result);
+    });
 
-
-    app.patch('/profile-update/:email', async (req, res) => {
-      const email = req.params.email
-      const update = req.body
-      const filter = { email: email }
-      const option = { upsert: true }
+    app.patch("/profile-update/:email", async (req, res) => {
+      const email = req.params.email;
+      const update = req.body;
+      const filter = {email: email};
+      const option = {upsert: true};
       const updateDoc = {
         $set: {
           name: update.name,
           address: update.address,
-          mobileNumber: update.mobileNumber
-        }
-      }
-      const result = await allUserCollection.updateOne(filter, updateDoc, option)
-      res.send(result)
-    })
+          mobileNumber: update.mobileNumber,
+        },
+      };
+      const result = await allUserCollection.updateOne(
+        filter,
+        updateDoc,
+        option
+      );
+      res.send(result);
+    });
 
     app.patch("/user-image-update/:email", async (req, res) => {
-      const email = req.params.email
-      const { image } = req.body
-      const filter = { email: email }
-      const option = { upsert: true }
+      const email = req.params.email;
+      const {image} = req.body;
+      const filter = {email: email};
+      const option = {upsert: true};
       const updateDoc = {
         $set: {
-          image: image
-        }
-      }
-      const result = await allUserCollection.updateOne(filter, updateDoc, option)
-      res.send(result)
-    })
+          image: image,
+        },
+      };
+      const result = await allUserCollection.updateOne(
+        filter,
+        updateDoc,
+        option
+      );
+      res.send(result);
+    });
 
     // create payment getwaye
-    app.post('/create-payment', async (req, res) => {
+    app.post("/create-payment", async (req, res) => {
       // client data
-      const paymentInfo = req.body
+      const paymentInfo = req.body;
       // initateData for sslComarce
       const initateData = {
         store_id: "webwa66d6f4cb94fee",
@@ -136,64 +157,57 @@ async function run() {
         value_a: "ref001_A&",
         value_b: "ref002_B&",
         value_c: "ref003_C&",
-        value_d: "ref004_D"
-      }
+        value_d: "ref004_D",
+      };
       // post for asslcomarce
       const response = await axios({
         method: "POST",
         url: "https://sandbox.sslcommerz.com/gwprocess/v4/api.php",
         data: initateData,
         headers: {
-          "content-type": "application/x-www-form-urlencoded"
-        }
-      })
+          "content-type": "application/x-www-form-urlencoded",
+        },
+      });
 
       const saveData = {
         cus_name: "Dumy",
         paymentId: tnxId,
         amount: paymentInfo.amount,
-        status: "Pending"
-      }
+        status: "Pending",
+      };
       // data save for mongodb database
-      const save = await paymentHistory.insertOne(saveData)
+      const save = await paymentHistory.insertOne(saveData);
       if (save) {
         res.send({
-          paymentUrl: response.data.GatewayPageURL
-        })
+          paymentUrl: response.data.GatewayPageURL,
+        });
       }
       // console.log(response)
-    })
+    });
 
-    app.post('/success-payment', async (req, res) => {
-      const successData = req.body
+    app.post("/success-payment", async (req, res) => {
+      const successData = req.body;
       if (successData.status !== "VALID") {
-        throw new Error("Unauthorized payment, Invalid Payment")
+        throw new Error("Unauthorized payment, Invalid Payment");
       }
       // Update Database
       const query = {
-        paymentId: successData.tran_id
-      }
+        paymentId: successData.tran_id,
+      };
       const update = {
         $set: {
-          status: "Success"
-        }
-      }
+          status: "Success",
+        },
+      };
 
-      const updateData = await paymentHistory.updateOne(query, update)
+      const updateData = await paymentHistory.updateOne(query, update);
 
-      console.log("success-data", successData)
-      console.log("Update-data", updateData)
-    })
-
-
-
-
-
-
-
+      console.log("success-data", successData);
+      console.log("Update-data", updateData);
+    });
 
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
+    await client.db("admin").command({ping: 1});
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
     );
