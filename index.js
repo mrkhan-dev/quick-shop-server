@@ -1,6 +1,7 @@
 const express = require("express");
 const app = express();
 const cors = require("cors");
+const jwt = require("jsonwebtoken");
 require("dotenv").config();
 const port = process.env.PORT || 8000;
 const {MongoClient, ServerApiVersion, ObjectId} = require("mongodb");
@@ -45,7 +46,7 @@ async function run() {
     });
 
     // create admin (sk)
-    app.get("allUsers/admin/:email", async (req, res) => {
+    app.get("users/admin/:email", async (req, res) => {
       const email = req.params.email;
       const query = {email: email};
       const user = allUserCollection.findOne(query);
