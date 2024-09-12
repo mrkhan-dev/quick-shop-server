@@ -32,6 +32,31 @@ async function run() {
     const allUserCollection = client.db("QuickShopBD").collection("allUsers");
     const paymentHistory = client.db("QuickShopBD").collection("payment");
     const tnxId = new ObjectId().toString();
+
+    // jwt
+    app.post("/jwt", async (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: "1h",
+      });
+      res.send({token});
+    });
+
+    const verifyToken = (req, res, next) => {
+      console.log("inside verify token", req.headers.authorization);
+      if (!req.headers.authorization) {
+        return res.status(401).send({message: "forbidden access"});
+      }
+      const token = req.headers.authorization.split(" ")[1];
+      jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+        if (err) {
+          return res.status(401).send({message: "forbidden access"});
+        }
+        req.decoded = decoded;
+        next();
+      });
+    };
+
     // get all products
     app.get("/allProducts", async (req, res) => {
       const result = await productCollection.find().toArray();
@@ -46,10 +71,14 @@ async function run() {
     });
 
     // create admin (sk)
-    app.get("users/admin/:email", async (req, res) => {
+    app.get("/users/admin/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
+      console.log(email);
+      if (email !== req.decoded.email) {
+        return res.status(403).send({message: "unauthorized access"});
+      }
       const query = {email: email};
-      const user = allUserCollection.findOne(query);
+      const user = await allUserCollection.findOne(query);
       let admin = false;
       if (user) {
         admin = user?.role === "admin";
@@ -67,6 +96,12 @@ async function run() {
     app.post("/all-users", async (req, res) => {
       const users = req.body;
       const result = await allUserCollection.insertOne(users);
+      res.send(result);
+    });
+
+    // get all users
+    app.get("/all-users", async (req, res) => {
+      const result = await allUserCollection.find().toArray();
       res.send(result);
     });
 
