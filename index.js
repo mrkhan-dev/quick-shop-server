@@ -1,11 +1,11 @@
 const express = require("express");
 const app = express();
 const cors = require("cors");
-// const jwt = require("jsonwebtoken");
 require("dotenv").config();
+const jwt = require('jsonwebtoken');
 const port = process.env.PORT || 8000;
-const {MongoClient, ServerApiVersion, ObjectId} = require("mongodb");
-const {default: axios} = require("axios");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const { default: axios } = require("axios");
 
 // middleware
 app.use(cors());
@@ -33,29 +33,43 @@ async function run() {
     const paymentHistory = client.db("QuickShopBD").collection("payment");
     const tnxId = new ObjectId().toString();
 
+
     // jwt
     app.post("/jwt", async (req, res) => {
-      const user = req.body;
-      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
-        expiresIn: "1h",
-      });
-      res.send({token});
-    });
+      const user = req.body
+      const token = jwt.sign(user, process.env.VITE_IMG_API_KEY, { expiresIn: "1h" })
+      res.send({ token })
+    })
 
+    // middleware
     const verifyToken = (req, res, next) => {
-      console.log("inside verify token", req.headers.authorization);
+      console.log("inside verify token", req.headers.authorization)
       if (!req.headers.authorization) {
-        return res.status(401).send({message: "forbidden access"});
+        return res.status(401).send({ message: "forbidden access" })
       }
-      const token = req.headers.authorization.split(" ")[1];
-      jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
-        if (err) {
-          return res.status(401).send({message: "forbidden access"});
+      const token = req.headers.authorization.split(' ')[1]
+      jwt.verify(token, process.env.VITE_IMG_API_KEY, (error, decoded) => {
+        if (error) {
+          return res.status(401).send({ message: 'forbidden access' })
         }
         req.decoded = decoded;
-        next();
-      });
-    };
+        next()
+      })
+    }
+
+
+    const verifyAdmin = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email: email }
+      const user = await allUserCollection.findOne(query)
+      const isAdmin = user?.role === 'admin'
+      if (!isAdmin) {
+        return res.status(403).send({ message: 'forbidden access' })
+      }
+      next();
+    }
+
+
 
     // get all products
     app.get("/allProducts", async (req, res) => {
@@ -63,32 +77,34 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/user-profile/:email", async (req, res) => {
+    app.get("/user-profile/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
-      const query = {email: email};
+      console.log('user-profile', email)
+      const query = { email: email };
       const result = await allUserCollection.find(query).toArray();
       res.send(result);
     });
 
     // create admin (sk)
-    app.get("/users/admin/:email", verifyToken, async (req, res) => {
-      const email = req.params.email;
-      console.log(email);
+
+    app.get("/user/admin/:email", verifyToken, async (req, res) => {
+      const email = req.params.email
       if (email !== req.decoded.email) {
-        return res.status(403).send({message: "unauthorized access"});
+        return res.status(403).send({ message: 'unauthorized access' })
       }
-      const query = {email: email};
-      const user = await allUserCollection.findOne(query);
-      let admin = false;
-      if (user) {
-        admin = user?.role === "admin";
+      const query = { email: email }
+      const user = await allUserCollection.findOne(query)
+      let admin = false
+      if (user && user.role === 'admin') {
+        admin = true
       }
-      res.send({admin});
-    });
+      res.send({ admin });
+    })
+
 
     app.get("/details/:id", async (req, res) => {
       const product = req.params.id;
-      const query = {_id: new ObjectId(product)};
+      const query = { _id: new ObjectId(product) };
       const result = await productCollection.findOne(query);
       res.send(result);
     });
@@ -100,16 +116,16 @@ async function run() {
     });
 
     // get all users
-    app.get("/all-users", async (req, res) => {
+    app.get("/all-users", verifyToken, verifyAdmin, async (req, res) => {
       const result = await allUserCollection.find().toArray();
       res.send(result);
     });
 
     app.patch("/user-name-change/:email", async (req, res) => {
       const email = req.params.email;
-      const {name} = req.body;
-      const filter = {email: email};
-      const option = {upsert: true};
+      const { name } = req.body;
+      const filter = { email: email };
+      const option = { upsert: true };
       const updateDoc = {
         $set: {
           name: name,
@@ -126,8 +142,8 @@ async function run() {
     app.patch("/profile-update/:email", async (req, res) => {
       const email = req.params.email;
       const update = req.body;
-      const filter = {email: email};
-      const option = {upsert: true};
+      const filter = { email: email };
+      const option = { upsert: true };
       const updateDoc = {
         $set: {
           name: update.name,
@@ -145,9 +161,9 @@ async function run() {
 
     app.patch("/user-image-update/:email", async (req, res) => {
       const email = req.params.email;
-      const {image} = req.body;
-      const filter = {email: email};
-      const option = {upsert: true};
+      const { image } = req.body;
+      const filter = { email: email };
+      const option = { upsert: true };
       const updateDoc = {
         $set: {
           image: image,
@@ -160,6 +176,34 @@ async function run() {
       );
       res.send(result);
     });
+
+    // product update 
+    app.patch("/product-update/:id", async (req, res) => {
+      const id = req.params.id
+      const product = req.body
+      const filter = { _id: new ObjectId(id) }
+      const option = { upsert: true }
+      const updateProduct = {
+        $set: {
+          name: product.name,
+          price: product.price,
+          description: product.description,
+          percentOff: product.percentOff,
+          category: product.category,
+          brandName: product.brandName,
+          image: product.image
+        }
+      }
+      const result = await productCollection.updateOne(filter, updateProduct, option)
+      res.send(result)
+    })
+
+    // product add
+    app.post("/product-add", async (req, res) => {
+      const product = req.body
+      const result = await productCollection.insertOne(product)
+      res.send(result)
+    })
 
     // create payment getwaye
     app.post("/create-payment", async (req, res) => {
@@ -242,8 +286,17 @@ async function run() {
       console.log("Update-data", updateData);
     });
 
+    app.delete("/product-delete/:id", async (req, res) => {
+      const id = req.params.id
+      console.log(id)
+      const query = { _id: new ObjectId(id) }
+      console.log(query)
+      const result = await productCollection.deleteOne(query)
+      res.send(result)
+    })
+
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ping: 1});
+    await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
     );
