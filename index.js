@@ -31,7 +31,8 @@ async function run() {
     const productCollection = client.db("QuickShopBD").collection("AllProduct");
     const allUserCollection = client.db("QuickShopBD").collection("allUsers");
     const paymentHistory = client.db("QuickShopBD").collection("payment");
-    const tnxId = new ObjectId().toString();
+    // const tnxId = new ObjectId().toString();
+    const tnxId = `TNX${Date.now()}`;
 
 
     // jwt
@@ -178,7 +179,7 @@ async function run() {
     });
 
     // product update 
-    app.patch("/product-update/:id", async (req, res) => {
+    app.patch("/product-update/:id", verifyToken, verifyAdmin, async (req, res) => {
       const id = req.params.id
       const product = req.body
       const filter = { _id: new ObjectId(id) }
@@ -199,7 +200,7 @@ async function run() {
     })
 
     // product add
-    app.post("/product-add", async (req, res) => {
+    app.post("/product-add", verifyToken, verifyAdmin, async (req, res) => {
       const product = req.body
       const result = await productCollection.insertOne(product)
       res.send(result)
@@ -210,6 +211,15 @@ async function run() {
       // client data
       const paymentInfo = req.body;
       // initateData for sslComarce
+
+      const products = paymentInfo.products
+
+      const productName = products.map(product => product.product_name).join(", ")
+      // const brand_name = products.map(product => product.brand_name).join(", ")
+      const category = products.map(product => product.category).join(", ")
+
+
+
       const initateData = {
         store_id: "webwa66d6f4cb94fee",
         store_passwd: "webwa66d6f4cb94fee@ssl",
@@ -217,11 +227,11 @@ async function run() {
         currency: paymentInfo.currency,
         tran_id: tnxId,
         success_url: "http://localhost:8000/success-payment",
-        fail_url: "http://yoursite.com/fail.php",
-        cancel_url: "http://yoursite.com/cancel.php",
-        cus_name: "Customer Name",
-        cus_email: "cust@yahoo.com",
-        cus_add1: "Dhaka",
+        fail_url: "http://localhost:8000/payment-fail",
+        cancel_url: "http://localhost:8000/payment-cancel",
+        cus_name: paymentInfo.customar_name || 'None',
+        cus_email: paymentInfo.customar_email || 'None',
+        cus_add1: paymentInfo.customar_address || 'None',
         cus_add2: "Dhaka",
         cus_city: "Dhaka",
         cus_state: "Dhaka",
@@ -230,8 +240,8 @@ async function run() {
         cus_phone: "01711111111",
         cus_fax: "01711111111",
         shipping_method: "NO",
-        product_name: "mobile",
-        product_category: "mobile",
+        product_name: productName,
+        product_category: category,
         product_profile: "general",
         multi_card_name: "mastercard,visacard,amexcard",
         value_a: "ref001_A&",
@@ -250,10 +260,13 @@ async function run() {
       });
 
       const saveData = {
-        cus_name: "Dumy",
         paymentId: tnxId,
+        customar_name: paymentInfo.customar_name,
+        customar_email: paymentInfo.customar_email,
+        customar_address: paymentInfo.customar_address,
         amount: paymentInfo.amount,
         status: "Pending",
+        order_details: products
       };
       // data save for mongodb database
       const save = await paymentHistory.insertOne(saveData);
@@ -284,9 +297,17 @@ async function run() {
 
       console.log("success-data", successData);
       console.log("Update-data", updateData);
+      res.redirect("http://localhost:5173/payment-success")
     });
 
-    app.delete("/product-delete/:id", async (req, res) => {
+    app.post('/payment-fail', async (req, res) => {
+      res.redirect('http://localhost:5173/payment-fail')
+    })
+    app.post('/payment-cancel', async (req, res) => {
+      res.redirect('http://localhost:5173/payment-cancel')
+    })
+
+    app.delete("/product-delete/:id", verifyToken, verifyAdmin, async (req, res) => {
       const id = req.params.id
       console.log(id)
       const query = { _id: new ObjectId(id) }
