@@ -34,7 +34,6 @@ async function run() {
     // const tnxId = new ObjectId().toString();
     const tnxId = `TNX${Date.now()}`;
 
-
     // jwt
     app.post("/jwt", async (req, res) => {
       const user = req.body
@@ -80,11 +79,19 @@ async function run() {
 
     app.get("/user-profile/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
-      console.log('user-profile', email)
+      // console.log('user-profile', email)
       const query = { email: email };
       const result = await allUserCollection.find(query).toArray();
       res.send(result);
     });
+
+    app.get('/user-order-history/:email', async (req, res) => {
+      const email = req.params.email
+      console.log('email checking', email)
+      const query = { customar_email: email }
+      const result = await paymentHistory.find(query).toArray()
+      res.send(result)
+    })
 
     // create admin (sk)
 
@@ -111,8 +118,14 @@ async function run() {
     });
 
     app.post("/all-users", async (req, res) => {
-      const users = req.body;
-      const result = await allUserCollection.insertOne(users);
+      const { email, password } = req.body;
+      const newUser = {
+        email,
+        password,
+        createdAt: new Date()
+      }
+
+      const result = await allUserCollection.insertOne(newUser);
       res.send(result);
     });
 
@@ -121,6 +134,102 @@ async function run() {
       const result = await allUserCollection.find().toArray();
       res.send(result);
     });
+
+    app.get('/order-history', async (req, res) => {
+      const result = await paymentHistory.find().toArray()
+      res.send(result)
+    })
+
+    // TODO 
+
+    app.get('/order-items/:id', async (req, res) => {
+      const id = req.params.id
+      const query = { _id: new ObjectId(id) }
+      const result = await paymentHistory.findOne(query)
+      res.send(result)
+    })
+
+
+
+    app.get('/dashboard-overview', async (req, res) => {
+      try {
+        const currentTime = new Date()
+        const last24Hours = new Date(currentTime - 24 * 60 * 60 * 1000)
+        const lastWeek = new Date(currentTime - 7 * 24 * 60 * 60 * 1000)
+        const lastMonth = new Date(currentTime - 30 * 24 * 60 * 60 * 1000)
+        const lastYear = new Date(currentTime - 365 * 24 * 60 * 60 * 1000)
+
+
+        const calculateTotal = async (collection, timeRange) => {
+          const count = await collection.countDocuments({ createdAt: { $gte: timeRange } })
+          const totalAmount = await collection.aggregate([
+            { $match: { createdAt: { $gte: timeRange } } },
+            { $group: { _id: null, total: { $sum: '$amount' } } }
+          ]).toArray()
+          return {
+            count,
+            totalAmount: totalAmount.length > 0 ? totalAmount[0].total : 0
+          }
+        };
+
+        const last24HoursRevenue = await calculateTotal(paymentHistory, last24Hours)
+        const lastWeekRevenue = await calculateTotal(paymentHistory, lastWeek)
+        const lastMonthRevenue = await calculateTotal(paymentHistory, lastMonth)
+        const lastYearRevenue = await calculateTotal(paymentHistory, lastYear)
+
+        const last24HoursCustomars = await allUserCollection.countDocuments({ createdAt: { $gte: last24Hours } });
+        const lastWeekCustomars = await allUserCollection.countDocuments({ createdAt: { $gte: lastWeek } });
+        const lastMonthCustomars = await allUserCollection.countDocuments({ createdAt: { $gte: lastMonth } });
+        const lastYearCustomars = await allUserCollection.countDocuments({ createdAt: { $gte: lastYear } });
+
+
+        const last24HoursTransactions = await paymentHistory.countDocuments({ createdAt: { $gte: last24Hours } });
+        const lastWeekTransactions = await paymentHistory.countDocuments({ createdAt: { $gte: lastWeek } });
+        const lastMonthTransactions = await paymentHistory.countDocuments({ createdAt: { $gte: lastMonth } });
+        const lastYearTransactions = await paymentHistory.countDocuments({ createdAt: { $gte: lastYear } });
+
+        const last24HoursProducts = await productCollection.countDocuments({ createdAt: { $gte: last24Hours } });
+        const lastWeekProducts = await productCollection.countDocuments({ createdAt: { $gte: lastWeek } });
+        const lastMonthProducts = await productCollection.countDocuments({ createdAt: { $gte: lastMonth } });
+        const lastYearProducts = await productCollection.countDocuments({ createdAt: { $gte: lastYear } });
+
+
+        res.status(200).json({
+
+          totalRevenue: {
+            last24Hours: last24HoursRevenue.totalAmount,
+            lastWeek: lastWeekRevenue.totalAmount,
+            lastMonth: lastMonthRevenue.totalAmount,
+            lastYear: lastYearRevenue.totalAmount,
+          },
+          totalCustomers: {
+            last24Hours: last24HoursCustomars,
+            lastWeek: lastWeekCustomars,
+            lastMonth: lastMonthCustomars,
+            lastYear: lastYearCustomars
+          },
+          totalTransactions: {
+            last24Hours: last24HoursTransactions,
+            lastWeek: lastWeekTransactions,
+            lastMonth: lastMonthTransactions,
+            lastYear: lastYearTransactions
+          },
+          totalProducts: {
+            last24Hours: last24HoursProducts,
+            lastWeek: lastWeekProducts,
+            lastMonth: lastMonthProducts,
+            lastYear: lastYearProducts
+          }
+
+        })
+      } catch (error) {
+        res.send(500).json('error', error.message)
+      }
+
+    })
+
+
+
 
     app.patch("/user-name-change/:email", async (req, res) => {
       const email = req.params.email;
@@ -218,8 +327,6 @@ async function run() {
       // const brand_name = products.map(product => product.brand_name).join(", ")
       const category = products.map(product => product.category).join(", ")
 
-
-
       const initateData = {
         store_id: "webwa66d6f4cb94fee",
         store_passwd: "webwa66d6f4cb94fee@ssl",
@@ -259,12 +366,24 @@ async function run() {
         },
       });
 
+
+      // date create
+      const date = new Date()
+      const year = date.getFullYear()
+      const month = date.getMonth()
+      const day = date.getDate()
+      const currentDate = new Date(year, month, day)
+
+
       const saveData = {
         paymentId: tnxId,
         customar_name: paymentInfo.customar_name,
         customar_email: paymentInfo.customar_email,
         customar_address: paymentInfo.customar_address,
         amount: paymentInfo.amount,
+        date: currentDate,
+        createdAt: new Date(),
+        updateAt: new Date(),
         status: "Pending",
         order_details: products
       };
@@ -297,7 +416,7 @@ async function run() {
 
       console.log("success-data", successData);
       console.log("Update-data", updateData);
-      res.redirect("http://localhost:5173/payment-success")
+      res.redirect(`http://localhost:5173/payment-success?tran_id=${successData.tran_id}`)
     });
 
     app.post('/payment-fail', async (req, res) => {
