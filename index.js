@@ -153,11 +153,47 @@ async function run() {
 
     app.get('/dashboard-overview', async (req, res) => {
       try {
+
         const currentTime = new Date()
         const last24Hours = new Date(currentTime - 24 * 60 * 60 * 1000)
         const lastWeek = new Date(currentTime - 7 * 24 * 60 * 60 * 1000)
         const lastMonth = new Date(currentTime - 30 * 24 * 60 * 60 * 1000)
         const lastYear = new Date(currentTime - 365 * 24 * 60 * 60 * 1000)
+        // 7 day data
+        const last7Day = new Date()
+        last7Day.setDate(last7Day.getDate() - 7);
+
+
+        const revenueData = await paymentHistory.aggregate([
+          {
+            $match: {
+              createdAt: { $gte: last7Day }
+            }
+          },
+          {
+            $group: {
+              _id: { $dayOfWeek: "$createdAt" },
+              totalRevenue: { $sum: '$amount' }
+            }
+          },
+          {
+            $sort: { _id: 1 }
+          }
+        ]).toArray()
+
+
+
+
+        const calculateCustomarByCountry = async (collection, timeRange) => {
+          const customarData = await collection.aggregate([
+            { $match: { createdAt: { $gte: timeRange } } },
+            {
+              $group: { _id: "$country", totalCustomers: { $sum: 1 } }
+            },
+            { $sort: { totalCustomers: -1 } }
+          ]).toArray()
+          return customarData
+        }
 
 
         const calculateTotal = async (collection, timeRange) => {
@@ -171,6 +207,15 @@ async function run() {
             totalAmount: totalAmount.length > 0 ? totalAmount[0].total : 0
           }
         };
+
+
+
+
+        const last24HoursCountry = await calculateCustomarByCountry(allUserCollection, last24Hours)
+        const lastWeekCountry = await calculateCustomarByCountry(allUserCollection, lastWeek)
+        const lastMonthCountry = await calculateCustomarByCountry(allUserCollection, lastMonth)
+        const lastYearCountry = await calculateCustomarByCountry(allUserCollection, lastYear)
+
 
         const last24HoursRevenue = await calculateTotal(paymentHistory, last24Hours)
         const lastWeekRevenue = await calculateTotal(paymentHistory, lastWeek)
@@ -192,6 +237,8 @@ async function run() {
         const lastWeekProducts = await productCollection.countDocuments({ createdAt: { $gte: lastWeek } });
         const lastMonthProducts = await productCollection.countDocuments({ createdAt: { $gte: lastMonth } });
         const lastYearProducts = await productCollection.countDocuments({ createdAt: { $gte: lastYear } });
+
+
 
 
         res.status(200).json({
@@ -219,11 +266,20 @@ async function run() {
             lastWeek: lastWeekProducts,
             lastMonth: lastMonthProducts,
             lastYear: lastYearProducts
+          },
+          totalCountry: {
+            last24Hours: last24HoursCountry,
+            lastWeek: lastWeekCountry,
+            lastMonth: lastMonthCountry,
+            lastYear: lastYearCountry
+          },
+          totalWeekRevenue: {
+            revenueData
           }
 
         })
       } catch (error) {
-        res.send(500).json('error', error.message)
+        res.status(500).json('error', error.message)
       }
 
     })
@@ -259,6 +315,11 @@ async function run() {
           name: update.name,
           address: update.address,
           mobileNumber: update.mobileNumber,
+          city: update.city,
+          state: update.state,
+          postal_code: update.postal_code,
+          country: update.country,
+          updateAt: new Date()
         },
       };
       const result = await allUserCollection.updateOne(
@@ -315,6 +376,11 @@ async function run() {
       res.send(result)
     })
 
+
+    app.get('customar', async (req, res) => {
+
+    })
+
     // create payment getwaye
     app.post("/create-payment", async (req, res) => {
       // client data
@@ -365,6 +431,8 @@ async function run() {
           "content-type": "application/x-www-form-urlencoded",
         },
       });
+
+
 
 
       // date create
