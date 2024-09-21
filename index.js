@@ -7,10 +7,34 @@ const port = process.env.PORT || 8000;
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const { default: axios } = require("axios");
 
+// socket implement
+const http = require('http');
+const { Server } = require("socket.io");
+const { create } = require("domain");
+
+
 // middleware
-app.use(cors());
+app.use(cors({
+  origin: 'http://localhost:5173'
+}));
 app.use(express.json());
-app.use(express.urlencoded());
+app.use(express.urlencoded({ extended: true }));
+
+// socket implement
+const server = http.createServer(app)
+const io = new Server(server, {
+  cors: {
+    origin: 'http://localhost:5173',
+    methods: ["GET", "POST"]
+  }
+})
+
+// ---------------------------------------
+
+
+
+// ---------------------------------------
+
 // --------------------------------------------------
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.aeb0oh8.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -31,6 +55,7 @@ async function run() {
     const productCollection = client.db("QuickShopBD").collection("AllProduct");
     const allUserCollection = client.db("QuickShopBD").collection("allUsers");
     const paymentHistory = client.db("QuickShopBD").collection("payment");
+    const notificationCollection = client.db("QuickShopBD").collection("notification");
     // const tnxId = new ObjectId().toString();
     const tnxId = `TNX${Date.now()}`;
 
@@ -40,6 +65,8 @@ async function run() {
       const token = jwt.sign(user, process.env.VITE_IMG_API_KEY, { expiresIn: "1h" })
       res.send({ token })
     })
+
+    // ========================================================================
 
     // middleware
     const verifyToken = (req, res, next) => {
@@ -57,7 +84,6 @@ async function run() {
       })
     }
 
-
     const verifyAdmin = async (req, res, next) => {
       const email = req.decoded.email;
       const query = { email: email }
@@ -70,6 +96,8 @@ async function run() {
     }
 
 
+
+    // =========================================================================
 
     // get all products
     app.get("/allProducts", async (req, res) => {
@@ -126,8 +154,28 @@ async function run() {
       }
 
       const result = await allUserCollection.insertOne(newUser);
-      res.send(result);
+
+      const notification = {
+        message: 'New User Registred',
+        user: {
+          email: newUser.email
+        },
+        isRead: false,
+        createdAt: new Date()
+      }
+
+      const notificationRusult = await notificationCollection.insertOne(notification)
+
+      io.emit('newUser', notification)
+
+      res.send(result)
     });
+
+
+    app.get('/notification', async (req, res) => {
+      const result = await notificationCollection.find({}).toArray()
+      res.send(result)
+    })
 
     // get all users
     app.get("/all-users", verifyToken, verifyAdmin, async (req, res) => {
@@ -515,11 +563,27 @@ async function run() {
 }
 run().catch(console.dir);
 
+
+// -------------------------------------------------
+
+io.on('connection', (socket) => {
+  console.log('New client Connected');
+
+  socket.on('disconnect', () => {
+    console.log('Client disconnected');
+  })
+})
+
+
+
+
+// --------------------------------------------------
+
 // --------------------------------------------------
 app.get("/", (req, res) => {
   res.send("Welcome to Quick Shop");
 });
 
-app.listen(port, () => {
+server.listen(port, () => {
   console.log(`gadgets running on port ${port}`);
 });
