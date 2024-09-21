@@ -168,7 +168,7 @@ async function run() {
 
       io.emit('newUser', notification)
 
-      res.send(result)
+      res.send({ result, notificationRusult })
     });
 
 
@@ -510,6 +510,24 @@ async function run() {
           paymentUrl: response.data.GatewayPageURL,
         });
       }
+
+      const notification = {
+        message: 'New Order',
+        name: paymentInfo.customar_name,
+        user: {
+          email: paymentInfo.customar_email
+        },
+        transaction_id: tnxId,
+        image: paymentInfo.image,
+        isRead: false,
+        createdAt: new Date()
+      }
+
+      await notificationCollection.insertOne(notification)
+
+      io.emit('newOrder', notification)
+
+
       // console.log(response)
     });
 
