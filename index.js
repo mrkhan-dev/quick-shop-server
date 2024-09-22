@@ -173,9 +173,39 @@ async function run() {
 
 
     app.get('/notification', async (req, res) => {
-      const result = await notificationCollection.find({}).toArray()
+      const result = await notificationCollection.find({}).sort({ createdAt: -1 }).toArray()
       res.send(result)
     })
+
+    // unread notification sum
+    app.get('/notification/unread', async (req, res) => {
+      const totalUnread = await notificationCollection.aggregate([
+        { $match: { isRead: false } },
+        {
+          $group: {
+            _id: null,
+            totalUnreadCount: { $sum: 1 },
+          }
+        }
+      ]).toArray()
+      const unReadCount = totalUnread[0]?.totalUnreadCount || 0
+
+      res.status(200).json({ totalUnreadNotificaton: unReadCount });
+    })
+
+    //  unread notification update
+    app.patch('/notification-unread-update', async (req, res) => {
+      const unreadCheck = { isRead: false }
+      const updateData = {
+        $set: {
+          isRead: true
+        }
+      }
+      const result = await notificationCollection.updateMany(unreadCheck, updateData)
+      res.send(result)
+    })
+
+
 
     // get all users
     app.get("/all-users", verifyToken, verifyAdmin, async (req, res) => {
@@ -188,7 +218,6 @@ async function run() {
       res.send(result)
     })
 
-    // TODO 
 
     app.get('/order-items/:id', async (req, res) => {
       const id = req.params.id
@@ -425,9 +454,11 @@ async function run() {
     })
 
 
-    app.get('customar', async (req, res) => {
+    // TODO
 
-    })
+    // app.get('customar', async (req, res) => {
+
+    // })
 
     // create payment getwaye
     app.post("/create-payment", async (req, res) => {
