@@ -152,9 +152,7 @@ async function run() {
         password,
         createdAt: new Date()
       }
-
       const result = await allUserCollection.insertOne(newUser);
-
       const notification = {
         message: 'New User Registred',
         user: {
@@ -163,11 +161,8 @@ async function run() {
         isRead: false,
         createdAt: new Date()
       }
-
       const notificationRusult = await notificationCollection.insertOne(notification)
-
       io.emit('newUser', notification)
-
       res.send({ result, notificationRusult })
     });
 
