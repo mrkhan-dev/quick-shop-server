@@ -15,7 +15,9 @@ const { create } = require("domain");
 
 // middleware
 app.use(cors({
-  origin: 'http://localhost:5173'
+  origin: ['http://localhost:5173', 'https://quickshop-4fa4e.web.app'],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+  credentials: true
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -24,8 +26,9 @@ app.use(express.urlencoded({ extended: true }));
 const server = http.createServer(app)
 const io = new Server(server, {
   cors: {
-    origin: 'http://localhost:5173',
-    methods: ["GET", "POST"]
+    origin: ['http://localhost:5173', 'https://quickshop-4fa4e.web.app'],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+    credentials: true
   }
 })
 
